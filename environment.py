@@ -7,13 +7,21 @@ import random
 from OpenGL.GL import *
 from OpenGL.GLUT import *
 from OpenGL.GLU import *
+from itertools import tee, izip
+
 
 G = 98000
 dt = 0.0001
 screensize = (1024,768)
 zoom = -500.0
+camera_z = 1.0
+camera_x = 0.0
 xpos = 0
-scale = 10.0
+view_angle = 0.0
+scale = 5.0
+display_history = True
+history_size = 150
+entity_count = 30
 # ascii codes for various special keys
 ESCAPE = 27
 PAGE_UP = 73
@@ -25,23 +33,21 @@ RIGHT_ARROW = 77
 
 class entity():
 	def __init__(self,id,position,velocity,acceleration,mass,color):
+		global history_size
 		self.id = id
 		self.position = position 
 		self.velocity = velocity
 		self.acceleration = acceleration
 		self.mass = mass
 		self.color = color
-
-	def distance_to_entity(self,ent):
-		r = ent.position - self.position
-		return numpy.linalg.norm(r)
+		self.position_history = self.data = [None for i in xrange(history_size)]
 
 	def calc_gravity(self,entities):
 		self.acceleration = numpy.array([0.0,0.0,0.0])
 		for ent in entities:
 			if ent.id == self.id:
 				continue
-			rabs = self.distance_to_entity(ent)
+			rabs = numpy.linalg.norm(ent.position - self.position)
 			g_abs = G*ent.mass*1/(rabs**2)
 			g = g_abs*(ent.position - self.position)/rabs
 			self.acceleration = self.acceleration + g
@@ -50,65 +56,56 @@ class entity():
 	def propogate_linear(self,dt):
 		self.velocity = self.velocity + dt*self.acceleration
 		self.position = self.position + dt*self.velocity
+		self.position_history.pop(0)
+		self.position_history.append(self.position)
 		
 	def draw(self):
-		glLoadIdentity()
+		def pairwise(iterable):
+			"s -> (s0,s1), (s1,s2), (s2, s3), ..."
+			a, b = tee(iterable)
+			next(b, None)
+			return izip(a, b)
+		glPushMatrix()
 		glTranslatef(self.position[0],self.position[1],self.position[2])		# Move Right And Into The Screen
-		glScaled(scale,scale,scale)
+		mass_scale = scale+self.mass*0.0001
+		glScaled(mass_scale,mass_scale,mass_scale)
 		glColor3f(*self.color)			# Set The Color To Blue
 		glutWireSphere(1.0,10,10)
-		# glBegin(GL_QUADS)			# Start Drawing The Cube
-
-
-		# glColor3f(0.0,1.0,0.0)			# Set The Color To Blue
-		# glVertex3f( 1.0, 1.0,-1.0)		# Top Right Of The Quad (Top)
-		# glVertex3f(-1.0, 1.0,-1.0)		# Top Left Of The Quad (Top)
-		# glVertex3f(-1.0, 1.0, 1.0)		# Bottom Left Of The Quad (Top)
-		# glVertex3f( 1.0, 1.0, 1.0)		# Bottom Right Of The Quad (Top)
-
-		# glColor3f(1.0,0.5,0.0)			# Set The Color To Orange
-		# glVertex3f( 1.0,-1.0, 1.0)		# Top Right Of The Quad (Bottom)
-		# glVertex3f(-1.0,-1.0, 1.0)		# Top Left Of The Quad (Bottom)
-		# glVertex3f(-1.0,-1.0,-1.0)		# Bottom Left Of The Quad (Bottom)
-		# glVertex3f( 1.0,-1.0,-1.0)		# Bottom Right Of The Quad (Bottom)
-
-		# glColor3f(1.0,0.0,0.0)			# Set The Color To Red
-		# glVertex3f( 1.0, 1.0, 1.0)		# Top Right Of The Quad (Front)
-		# glVertex3f(-1.0, 1.0, 1.0)		# Top Left Of The Quad (Front)
-		# glVertex3f(-1.0,-1.0, 1.0)		# Bottom Left Of The Quad (Front)
-		# glVertex3f( 1.0,-1.0, 1.0)		# Bottom Right Of The Quad (Front)
-
-		# glColor3f(1.0,1.0,0.0)			# Set The Color To Yellow
-		# glVertex3f( 1.0,-1.0,-1.0)		# Bottom Left Of The Quad (Back)
-		# glVertex3f(-1.0,-1.0,-1.0)		# Bottom Right Of The Quad (Back)
-		# glVertex3f(-1.0, 1.0,-1.0)		# Top Right Of The Quad (Back)
-		# glVertex3f( 1.0, 1.0,-1.0)		# Top Left Of The Quad (Back)
-
-		# glColor3f(0.0,0.0,1.0)			# Set The Color To Blue
-		# glVertex3f(-1.0, 1.0, 1.0)		# Top Right Of The Quad (Left)
-		# glVertex3f(-1.0, 1.0,-1.0)		# Top Left Of The Quad (Left)
-		# glVertex3f(-1.0,-1.0,-1.0)		# Bottom Left Of The Quad (Left)
-		# glVertex3f(-1.0,-1.0, 1.0)		# Bottom Right Of The Quad (Left)
-
-		# glColor3f(1.0,0.0,1.0)			# Set The Color To Violet
-		# glVertex3f( 1.0, 1.0,-1.0)		# Top Right Of The Quad (Right)
-		# glVertex3f( 1.0, 1.0, 1.0)		# Top Left Of The Quad (Right)
-		# glVertex3f( 1.0,-1.0, 1.0)		# Bottom Left Of The Quad (Right)
-		# glVertex3f( 1.0,-1.0,-1.0)		# Bottom Right Of The Quad (Right)
-		# glEnd()				# Done Drawing The Quad
-		
+		glPopMatrix()
+		glPushMatrix()
+		if display_history:
+			for pos, pos_next in pairwise(self.position_history):
+				if pos is not None and pos_next is not None:
+					glBegin(GL_LINES)
+					glVertex3f(pos[0],
+							   pos[1],
+							   pos[2])
+					glVertex3f(pos_next[0],
+							   pos_next[1],
+							   pos_next[2])
+					glEnd()
+		glPopMatrix()
+	
 entities = []
 
+sun = {'id':'sun2',
+  'position':numpy.array([1000.0,0.0,0.0]),
+  'velocity':numpy.array([0.0,2000.0,0.0]),
+  'acceleration':numpy.array([0.0,0.0,0.0]),
+  'mass':100000.0,
+  'color':[1.0,1.0,0.0]}
+  
 sun = {'id':'sun',
   'position':numpy.array([0.0,0.0,0.0]),
   'velocity':numpy.array([0.0,0.0,0.0]),
   'acceleration':numpy.array([0.0,0.0,0.0]),
-  'mass':50000.0,
+  'mass':100000.0,
   'color':[1.0,1.0,0.0]}
 
 entities.append(entity(**sun))
+#entities.append(entity(**sun2))
 
-for e in entity_generator.generate(count=30,gravity_enabled=True):
+for e in entity_generator.generate(count=entity_count,gravity_enabled=False):
 	entities.append(entity(**e))
 
 
@@ -123,9 +120,8 @@ def InitGL(Width, Height):				# We call this right after our OpenGL window is cr
 	glMatrixMode(GL_PROJECTION)
 	glLoadIdentity()					# Reset The Projection Matrix
 										# Calculate The Aspect Ratio Of The Window
-	gluPerspective(45.0, float(Width)/float(Height), 0.1, 100.0)
+
 	gluPerspective(45.0, float(Width)/float(Height), 0.1, 100000000000000000.0)
-	gluLookAt(0.0,0.0,zoom,0.0,0.0,0.0,0.0,1.0,0.0)
 	glMatrixMode(GL_MODELVIEW)
 
 # The function called when our window is resized (which shouldn't happen if you enable fullscreen, below)
@@ -137,50 +133,69 @@ def ReSizeGLScene(Width, Height):
 	glMatrixMode(GL_PROJECTION)
 	glLoadIdentity()
 	gluPerspective(45.0, float(Width)/float(Height), 0.1, 100000000000000000.0)
-	gluLookAt(0.0,0.0,zoom,0.0,0.0,0.0,0.0,1.0,0.0)
 	glMatrixMode(GL_MODELVIEW)
 
 
 # The main drawing function. 
 def DrawGLScene():
-	glMatrixMode(GL_MODELVIEW)
-	glViewport(0, 0, screensize[0], screensize[1]) 	# Reset The Current Viewport And Perspective Transformation
-	glMatrixMode(GL_PROJECTION)
-	glLoadIdentity()
-	gluPerspective(45.0, float(screensize[0])/float(screensize[1]), 0.1, 100000000000000000.0)
-	gluLookAt(xpos,0.0,zoom,xpos,0.0,0.0,0.0,1.0,0.0)
-	glMatrixMode(GL_MODELVIEW)
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
-	glLoadIdentity()					# Reset The View
+	glMatrixMode(GL_MODELVIEW)
+	glLoadIdentity()
+	gluLookAt(camera_x,0.0,camera_z,xpos,0.0,0.0,0.0,1.0,0.0)	
+	glPushMatrix()
 	for ent in entities:
 		ent.calc_gravity(entities)
 		ent.propogate_linear(dt)
 		ent.draw()
+	glPopMatrix()
+
 	glutSwapBuffers()
 
 # The function called whenever a key is pressed. Note the use of Python tuples to pass in: (key, x, y)	
 def keyPressed(*args):
 	global zoom
+	global camera_z
+	global camera_x
 	global scale
 	global xpos
+	global view_angle
+	global display_history
 	# If escape is pressed, kill everything.
 	if args[0] == ESCAPE:
 		sys.exit()
 	
 	if args[0] == 'w':
 		zoom = zoom + 50
+		camera_z = numpy.cos(view_angle)*zoom
+		camera_x = numpy.sin(view_angle)*zoom
 		#scale = numpy.abs(zoom)
 		
 	if args[0] == 's':
 		zoom = zoom - 50
+		camera_z = numpy.cos(view_angle)*zoom
+		camera_x = numpy.sin(view_angle)*zoom
 		#scale = numpy.abs(zoom)
 		
 	if args[0] == 'a':
-		xpos = xpos + 10
+		#xpos = xpos + 10
+		view_angle = view_angle + 0.02
+		camera_z = numpy.cos(view_angle)*zoom
+		camera_x = numpy.sin(view_angle)*zoom
 		
 	if args[0] == 'd':
-		xpos = xpos - 10
+		#xpos = xpos - 10
 		#scale = numpy.abs(zoom)
+		view_angle = view_angle - 0.02
+		camera_z = numpy.cos(view_angle)*zoom
+		camera_x = numpy.sin(view_angle)*zoom
+		
+	if args[0] == 'h':
+		if display_history:
+			display_history = False
+		else:
+			display_history = True
+		
+	
 
 
 def mouse(button, state, x, y):
