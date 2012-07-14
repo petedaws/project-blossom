@@ -21,9 +21,9 @@ view_angle = 0.0
 scale = 5.0
 display_history = True
 history_size = 150
-entity_count = 10
+entity_count = 30
 merge_threshold = 10
-max_accel = 100
+max_accel = 100000
 # ascii codes for various special keys
 ESCAPE = 27
 PAGE_UP = 73
@@ -50,23 +50,9 @@ class entity():
 			if ent.id == self.id:
 				continue
 			rabs = numpy.linalg.norm(ent.position - self.position)
-			if rabs < merge_threshold:
-				f_self = self.mass * self.acceleration
-				f_ent = ent.mass * ent.acceleration
-				f_new = f_self+f_ent
-				new_acceleration = self.acceleration + g
-				new_entity = {'id':'%s%s'%(self.id,ent.id),
-						  'position':self.position,
-						  'velocity':self.velocity+ent.velocity,
-						  'acceleration':new_acceleration,
-						  'mass':self.mass+ent.mass,
-						  'color':[1.0,1.0,0.0]}
-				print 'merge',new_entity
-				entities.remove(self)
-				entities.remove(ent)
-				entities.append(entity(**new_entity))
-				break
 			g_abs = G*ent.mass*1/(rabs**2)
+			if g_abs > max_accel:
+				g_abs = max_accel
 			g = g_abs*(ent.position - self.position)/rabs
 			self.acceleration = self.acceleration + g
 			
@@ -104,22 +90,25 @@ entities = []
 
 sun2 = {'id':'sun2',
   'position':numpy.array([1000.0,0.0,0.0]),
-  'velocity':numpy.array([0.0,0000.0,0.0]),
+  'velocity':numpy.array([0.0,200.0,0.0]),
   'acceleration':numpy.array([0.0,0.0,0.0]),
   'mass':100000.0,
   'color':[1.0,1.0,0.0]}
   
 sun = {'id':'sun',
-  'position':numpy.array([0.0,0.0,0.0]),
+  'position':numpy.array([-1000.0,0.0,0.0]),
   'velocity':numpy.array([0.0,0.0,0.0]),
   'acceleration':numpy.array([0.0,0.0,0.0]),
   'mass':100000.0,
-  'color':[1.0,1.0,0.0]}
+  'color':[1.0,0.0,0.0]}
 
-#entities.append(entity(**sun))
-#entities.append(entity(**sun2))
+entities.append(entity(**sun))
+entities.append(entity(**sun2))
 
-for e in entity_generator.generate(count=entity_count,gravity_enabled=True):
+for e in entity_generator.generate(count=entity_count,color=[1.0,1.0,0.0],start_position=numpy.array([-1000.0,0.0,0.0]),gravity_enabled=False):
+	entities.append(entity(**e))
+	
+for e in entity_generator.generate(count=entity_count,color=[1.0,0.0,0.0],start_position=numpy.array([1000.0,0.0,0.0]),gravity_enabled=False):
 	entities.append(entity(**e))
 
 
