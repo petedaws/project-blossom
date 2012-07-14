@@ -66,7 +66,7 @@ class entity():
 			next(b, None)
 			return izip(a, b)
 		glPushMatrix()
-		glTranslatef(self.position[0],self.position[1],self.position[2])		# Move Right And Into The Screen
+		glTranslatef(*self.position.tolist())		# Move Right And Into The Screen
 		mass_scale = scale+self.mass*0.0001
 		glScaled(mass_scale,mass_scale,mass_scale)
 		glColor3f(*self.color)			# Set The Color To Blue
@@ -77,12 +77,8 @@ class entity():
 			for pos, pos_next in pairwise(self.position_history):
 				if pos is not None and pos_next is not None:
 					glBegin(GL_LINES)
-					glVertex3f(pos[0],
-							   pos[1],
-							   pos[2])
-					glVertex3f(pos_next[0],
-							   pos_next[1],
-							   pos_next[2])
+					glVertex3f(*pos.tolist())
+					glVertex3f(*pos_next.tolist())
 					glEnd()
 		glPopMatrix()
 	
@@ -121,7 +117,7 @@ def InitGL(Width, Height):				# We call this right after our OpenGL window is cr
 	glLoadIdentity()					# Reset The Projection Matrix
 										# Calculate The Aspect Ratio Of The Window
 
-	gluPerspective(45.0, float(Width)/float(Height), 0.1, 100000000000000000.0)
+	gluPerspective(90.0, float(Width)/float(Height), 0.1, 100000000000000000.0)
 	glMatrixMode(GL_MODELVIEW)
 
 # The function called when our window is resized (which shouldn't happen if you enable fullscreen, below)
@@ -132,7 +128,7 @@ def ReSizeGLScene(Width, Height):
 	glViewport(0, 0, Width, Height) 	# Reset The Current Viewport And Perspective Transformation
 	glMatrixMode(GL_PROJECTION)
 	glLoadIdentity()
-	gluPerspective(45.0, float(Width)/float(Height), 0.1, 100000000000000000.0)
+	gluPerspective(90.0, float(Width)/float(Height), 0.1, 100000000000000000.0)
 	glMatrixMode(GL_MODELVIEW)
 
 
@@ -210,47 +206,18 @@ def main():
 
 	# pass arguments to init
 	glutInit(sys.argv)
-
-	# Select type of Display mode:	 
-	#  Double buffer 
-	#  RGBA color
-	# Alpha components supported 
-	# Depth buffer
 	glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE | GLUT_DEPTH)
-	
-	# get a 640 x 480 window 
 	glutInitWindowSize(screensize[0], screensize[1])
-	
-	# the window starts at the upper left corner of the screen 
 	glutInitWindowPosition(0, 0)
-	
-	# Okay, like the C version we retain the window id to use when closing, but for those of you new
-	# to Python (like myself), remember this assignment would make the variable local and not global
-	# if it weren't for the global declaration at the start of main.
-	window = glutCreateWindow("Jeff Molofee's GL Code Tutorial ... NeHe '99")
-
-	# Register the drawing function with glut, BUT in Python land, at least using PyOpenGL, we need to
-	# set the function pointer and invoke a function to actually register the callback, otherwise it
-	# would be very much like the C version of the code.	
+	window = glutCreateWindow("project-blossom")
 	glutDisplayFunc(DrawGLScene)
-	
 	# Uncomment this line to get full screen.
 	#glutFullScreen()
-
-	# When we are doing nothing, redraw the scene.
 	glutIdleFunc(DrawGLScene)
-	
-	# Register the function called when our window is resized.
 	glutReshapeFunc(ReSizeGLScene)
-	
 	glutMouseFunc(mouse)
-	
-	# Register the function called when the keyboard is pressed.  
 	glutKeyboardFunc(keyPressed)
-
-	# Initialize our window. 
 	InitGL(screensize[0], screensize[1])
-	
 	# Start Event Processing Engine 
 	glutMainLoop()
 		
