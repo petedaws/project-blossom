@@ -20,8 +20,11 @@ xpos = 0
 view_angle = 0.0
 scale = 5.0
 display_history = True
-history_size = 150
-entity_count = 30
+display_kinetic = True
+display_acceleration = True
+paused = True
+history_size = 15
+entity_count = 0
 merge_threshold = 10
 max_accel = 100000
 # ascii codes for various special keys
@@ -32,6 +35,24 @@ UP_ARROW = 72
 DOWN_ARROW = 80
 LEFT_ARROW = 75
 RIGHT_ARROW = 77
+
+def orbit_generate(ent,count=10,gravity_enabled=False):
+	entities = []
+	pos_low = -500.0
+	pos_high = 500.0
+	vel_high = 1.0
+	vel_low = 0.7
+	mass_high = 1.0
+	mass_low = 1.0
+	vel_factor = 98000.0 * 100000.0
+	for i in xrange(count):
+		if gravity_enabled:
+			id = 'ent_%03d'%i
+		else:
+			id = ''
+		e = ent.create_orbiter(id,random.uniform(pos_high,pos_low),random.uniform(mass_high,mass_low))
+		entities.append(e)
+	return entities
 
 class entity():
 	def __init__(self,id,position,velocity,acceleration,mass,color):
@@ -51,18 +72,25 @@ class entity():
 				continue
 			rabs = numpy.linalg.norm(ent.position - self.position)
 			g_abs = G*ent.mass*1/(rabs**2)
-			if g_abs > max_accel:
-				g_abs = max_accel
 			g = g_abs*(ent.position - self.position)/rabs
 			self.acceleration = self.acceleration + g
 			
 
 	def propogate_linear(self,dt):
-		self.velocity = self.velocity + dt*self.acceleration
 		self.position = self.position + dt*self.velocity
+		self.velocity = self.velocity + dt*self.acceleration
 		self.position_history.pop(0)
 		self.position_history.append(self.position)
 		
+	def create_orbiter(self,id,distance,mass,color=[1.0,1.0,0.0]):
+		position = self.position+numpy.array([distance,0,0])
+		velocity_abs = numpy.sqrt(G*self.mass / numpy.linalg.norm(self.position-position))
+		velocity = (self.position-position)/numpy.linalg.norm(self.position-position) * velocity_abs
+		velocity = numpy.array([-1*velocity[1],velocity[0],velocity[2]]) + self.velocity
+		acceleration = numpy.array([0.0,0.0,0.0])
+		return entity(id,position,velocity,acceleration,mass,color)
+
+	
 	def draw(self):
 		def pairwise(iterable):
 			"s -> (s0,s1), (s1,s2), (s2, s3), ..."
@@ -70,46 +98,73 @@ class entity():
 			next(b, None)
 			return izip(a, b)
 		glPushMatrix()
-		glTranslatef(*self.position.tolist())		# Move Right And Into The Screen
+		glTranslatef(*self.position.tolist())
 		mass_scale = scale+self.mass*0.0001
 		glScaled(mass_scale,mass_scale,mass_scale)
-		glColor3f(*self.color)			# Set The Color To Blue
+		glColor3f(*self.color)
 		glutWireSphere(1.0,10,10)
 		glPopMatrix()
-		glPushMatrix()
 		if display_history:
+			glPushMatrix()
 			for pos, pos_next in pairwise(self.position_history):
 				if pos is not None and pos_next is not None:
 					glBegin(GL_LINES)
 					glVertex3f(*pos.tolist())
 					glVertex3f(*pos_next.tolist())
 					glEnd()
-		glPopMatrix()
+			glPopMatrix()
+			
+		if display_kinetic:
+			glPushMatrix()
+			glColor3f(1.0,0.0,1.1)
+			glBegin(GL_LINES)
+			glVertex3f(*self.position.tolist())
+			glVertex3f(*(self.position+self.velocity).tolist())
+			glEnd()
+			glPopMatrix()
+			
+		if display_acceleration:
+			glPushMatrix()
+			glColor3f(0.0,1.0,1.1)
+			glBegin(GL_LINES)
+			glVertex3f(*self.position.tolist())
+			glVertex3f(*((self.acceleration+self.position)).tolist())
+			glEnd()
+			glPopMatrix()
+			
 	
 entities = []
 
 sun2 = {'id':'sun2',
-  'position':numpy.array([1000.0,0.0,0.0]),
-  'velocity':numpy.array([0.0,200.0,0.0]),
+  'position':numpy.array([200.0,0.0,0.0]),
+  'velocity':numpy.array([0.0,5000.0,0.0]),
   'acceleration':numpy.array([0.0,0.0,0.0]),
   'mass':100000.0,
   'color':[1.0,1.0,0.0]}
   
 sun = {'id':'sun',
-  'position':numpy.array([-1000.0,0.0,0.0]),
+  'position':numpy.array([0.0,0.0,0.0]),
   'velocity':numpy.array([0.0,0.0,0.0]),
   'acceleration':numpy.array([0.0,0.0,0.0]),
   'mass':100000.0,
   'color':[1.0,0.0,0.0]}
+  
 
 entities.append(entity(**sun))
-entities.append(entity(**sun2))
+sun3 = entities[0].create_orbiter('sun3',1000,100)
+entities.append(sun3)
+sun4 = entities[1].create_orbiter('moon',10,0.00000001,color=[1.0,0.0,0.0])
+entities.append(sun4)
 
-for e in entity_generator.generate(count=entity_count,color=[1.0,1.0,0.0],start_position=numpy.array([-1000.0,0.0,0.0]),gravity_enabled=False):
+#entities.append(sun3)
+
+#for e in orbit_generate(entities[0],count=2,gravity_enabled=True):
+	#entities.append(e)
+
+for e in entity_generator.generate(count=entity_count,color=[1.0,0.0,0.0],start_position=numpy.array([-20.0,0.0,0.0]),gravity_enabled=True):
 	entities.append(entity(**e))
 	
-for e in entity_generator.generate(count=entity_count,color=[1.0,0.0,0.0],start_position=numpy.array([1000.0,0.0,0.0]),gravity_enabled=False):
-	entities.append(entity(**e))
+
 
 
 # A general OpenGL initialization function.  Sets all of the initial parameters. 
@@ -147,8 +202,9 @@ def DrawGLScene():
 	gluLookAt(camera_x,0.0,camera_z,xpos,0.0,0.0,0.0,1.0,0.0)	
 	glPushMatrix()
 	for ent in entities:
-		ent.calc_gravity(entities)
-		ent.propogate_linear(dt)
+		if not paused:
+			ent.calc_gravity(entities)
+			ent.propogate_linear(dt)
 		ent.draw()
 	glPopMatrix()
 
@@ -163,6 +219,9 @@ def keyPressed(*args):
 	global xpos
 	global view_angle
 	global display_history
+	global display_acceleration
+	global display_kinetic
+	global paused
 	# If escape is pressed, kill everything.
 	if args[0] == ESCAPE:
 		sys.exit()
@@ -171,23 +230,28 @@ def keyPressed(*args):
 		zoom = zoom + 50
 		camera_z = numpy.cos(view_angle)*zoom
 		camera_x = numpy.sin(view_angle)*zoom
-		#scale = numpy.abs(zoom)
 		
 	if args[0] == 's':
 		zoom = zoom - 50
 		camera_z = numpy.cos(view_angle)*zoom
 		camera_x = numpy.sin(view_angle)*zoom
-		#scale = numpy.abs(zoom)
 		
-	if args[0] == 'a':
-		#xpos = xpos + 10
+	if args[0] == 'q':
 		view_angle = view_angle + 0.02
 		camera_z = numpy.cos(view_angle)*zoom
 		camera_x = numpy.sin(view_angle)*zoom
 		
-	if args[0] == 'd':
-		#xpos = xpos - 10
-		#scale = numpy.abs(zoom)
+	if args[0] == 'e':
+		view_angle = view_angle - 0.02
+		camera_z = numpy.cos(view_angle)*zoom
+		camera_x = numpy.sin(view_angle)*zoom
+		
+	if args[0] == 'q':
+		view_angle = view_angle + 0.02
+		camera_z = numpy.cos(view_angle)*zoom
+		camera_x = numpy.sin(view_angle)*zoom
+		
+	if args[0] == 'e':
 		view_angle = view_angle - 0.02
 		camera_z = numpy.cos(view_angle)*zoom
 		camera_x = numpy.sin(view_angle)*zoom
@@ -197,8 +261,24 @@ def keyPressed(*args):
 			display_history = False
 		else:
 			display_history = True
+			
+	if args[0] == 'j':
+		if display_acceleration:
+			display_acceleration = False
+		else:
+			display_acceleration = True
+			
+	if args[0] == 'k':
+		if display_kinetic:
+			display_kinetic = False
+		else:
+			display_kinetic = True
 		
-	
+	if args[0] == 'p':
+		if paused:
+			paused = False
+		else:
+			paused = True	
 
 
 def mouse(button, state, x, y):
