@@ -11,7 +11,7 @@ from itertools import tee, izip
 
 
 G = 98000
-dt = 0.0001
+dt = 0.001
 screensize = (1024,768)
 zoom = -500.0
 camera_z = 1.0
@@ -35,6 +35,8 @@ UP_ARROW = 72
 DOWN_ARROW = 80
 LEFT_ARROW = 75
 RIGHT_ARROW = 77
+kv = [0,0,0,0]
+kr = [0,0,0,0]
 
 def orbit_generate(ent,count=10,gravity_enabled=False):
 	entities = []
@@ -65,15 +67,16 @@ class entity():
 		self.color = color
 		self.position_history = self.data = [None for i in xrange(history_size)]
 
-	def calc_gravity(self,entities):
+	def calc_gravity(self,position,entities=[]):
 		self.acceleration = numpy.array([0.0,0.0,0.0])
 		for ent in entities:
 			if ent.id == self.id:
 				continue
-			rabs = numpy.linalg.norm(ent.position - self.position)
+			rabs = numpy.linalg.norm(ent.position - position)
 			g_abs = G*ent.mass*1/(rabs**2)
-			g = g_abs*(ent.position - self.position)/rabs
+			g = g_abs*(ent.position - position)/rabs
 			self.acceleration = self.acceleration + g
+		return self.acceleration
 			
 
 	def propogate_linear(self,dt):
@@ -81,6 +84,21 @@ class entity():
 		self.velocity = self.velocity + dt*self.acceleration
 		self.position_history.pop(0)
 		self.position_history.append(self.position)
+		
+	def propogate_rk4(self,dt,entities):
+	
+		kr[0] = self.velocity
+		kv[0] = self.calc_gravity(self.position,entities)
+		kr[1] = self.velocity+kv[0]*dt/2
+		kv[1] = self.calc_gravity(self.position+kr[0]*dt/2,entities)
+		kr[2] = self.velocity+kv[1]*dt/2
+		kv[2] = self.calc_gravity(self.position+kr[1]*dt/2,entities)
+		kr[3] = self.velocity+kv[2]*dt
+		kv[3] = self.calc_gravity(self.position+kr[2]*dt,entities)
+		
+		self.position = self.position + dt/6.0*(kr[0] + 2*kr[1] + 2*kr[2] + kr[3])
+		self.velocity = self.velocity + dt/6.0*(kv[0] + 2*kv[1] + 2*kv[2] + kv[3])	
+		
 		
 	def create_orbiter(self,id,distance,mass,color=[1.0,1.0,0.0]):
 		position = self.position+numpy.array([distance,0,0])
@@ -153,13 +171,13 @@ sun = {'id':'sun',
 entities.append(entity(**sun))
 sun3 = entities[0].create_orbiter('sun3',1000,100)
 entities.append(sun3)
-sun4 = entities[1].create_orbiter('moon',10,0.00000001,color=[1.0,0.0,0.0])
+sun4 = entities[1].create_orbiter('moon',10,0.01,color=[1.0,0.0,0.0])
 entities.append(sun4)
 
-#entities.append(sun3)
+entities.append(sun3)
 
-#for e in orbit_generate(entities[0],count=2,gravity_enabled=True):
-	#entities.append(e)
+for e in orbit_generate(entities[0],count=0,gravity_enabled=True):
+	entities.append(e)
 
 for e in entity_generator.generate(count=entity_count,color=[1.0,0.0,0.0],start_position=numpy.array([-20.0,0.0,0.0]),gravity_enabled=True):
 	entities.append(entity(**e))
@@ -203,8 +221,8 @@ def DrawGLScene():
 	glPushMatrix()
 	for ent in entities:
 		if not paused:
-			ent.calc_gravity(entities)
-			ent.propogate_linear(dt)
+			#ent.calc_gravity(ent.position,entities)
+			ent.propogate_rk4(dt,entities)
 		ent.draw()
 	glPopMatrix()
 

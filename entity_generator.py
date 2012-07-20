@@ -6,9 +6,9 @@ def generate(count=10,color=[0,0,0],start_position=numpy.array([0,0,0]),gravity_
 	pos_low = -500.0
 	pos_high = 500.0
 	vel_high = 1.0
-	vel_low = 0.7
-	mass_high = 1.0
-	mass_low = 1.0
+	vel_low = 1.0
+	mass_high = 10000.0
+	mass_low = 10000.0
 	vel_factor = 98000.0 * 100000.0
 	for i in xrange(count):
 		if gravity_enabled:
