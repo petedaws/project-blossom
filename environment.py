@@ -11,7 +11,7 @@ from itertools import tee, izip
 
 
 G = 98000
-dt = 0.001
+dt = 0.1
 screensize = (1024,768)
 zoom = -500.0
 camera_z = 1.0
@@ -222,6 +222,7 @@ def DrawGLScene():
 	for ent in entities:
 		if not paused:
 			#ent.calc_gravity(ent.position,entities)
+			#ent.propogate_linear(dt)
 			ent.propogate_rk4(dt,entities)
 		ent.draw()
 	glPopMatrix()
